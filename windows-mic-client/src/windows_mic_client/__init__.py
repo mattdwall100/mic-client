@@ -1,0 +1,1 @@
+"""Windows microphone client package."""
