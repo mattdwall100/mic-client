@@ -19,7 +19,7 @@ class ClientOrchestrator:
 
         self.__session_id = None
 
-    # Getter, setter, deleter for session_id
+    # Getter, setter, deleter for session_id -----------------------------------
     @property
     def session_id(self) -> str | None:
         return self.__session_id
@@ -41,14 +41,22 @@ class ClientOrchestrator:
     def session_id(self) -> None:
         self.__session_id = None
 
-    # Stop current speech by raising flag in speaker, to be used by push-to-talk
-    def stop_speech(self):
-        self.player.stop_playback()
 
-    def health_check(self) -> dict[str, Any]:
-        response_json = self.api.health()
-        logger.info(f"health_response | response={response_json}")
+    # Server management -------------------------------------------------------
+    def health_check(self) -> bool:
+        response_bool = self.api.health()
+        logger.info(f"health_response | response={response_bool}")
+        return response_bool
 
+    def wake_server(self) -> None:
+        self.api.wake_server()
+        logger.info("wake_server sent")
+
+    def close_server(self) -> None:
+        self.api.close_server()
+        logger.info("close_server sent")
+
+    # Main functionality ----------------------------------------------------
     def speak(self, audio_bytes: bytes):
         logger.info(f"interaction_started | session_id={self.session_id}")
         with log_latency(logger, "interaction_completed", session_id=self.session_id):
@@ -74,5 +82,11 @@ class ClientOrchestrator:
                 self.player.play_wav_stream(iter_response)
             self.session_id = resolved_session_id
 
+
+    # Utils ------------------------------------------------------------------------
     def handle(self, event_name: str) -> None:
         self.fallback_handler.handle(event_name)
+
+    # Stop current speech by raising flag in speaker, to be used by push-to-talk
+    def stop_speech(self):
+        self.player.stop_playback()

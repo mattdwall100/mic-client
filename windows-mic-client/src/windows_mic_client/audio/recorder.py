@@ -106,6 +106,7 @@ class PushToTalkController:
 
         """System exit upon escape key press"""
         if key == keyboard.Key.esc:
+            self.orchestrator.close_server()
             sys.exit()
 
     def handle_audio(self, audio_bytes) -> None:

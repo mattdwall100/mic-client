@@ -10,6 +10,9 @@ class ClientSettings(BaseSettings):
     assistant_api_base_url: str = Field(
         default="http://localhost:8000", alias="ASSISTANT_API_BASE_URL"
     )
+    lifecycle_manager_base_url: str = Field(
+        default="http://localhost:9000", alias="LIFECYCLE_MANAGER_BASE_URL"
+    )
     assistant_api_timeout_seconds: float = Field(
         default=300.0, alias="ASSISTANT_API_TIMEOUT_SECONDS"
     )

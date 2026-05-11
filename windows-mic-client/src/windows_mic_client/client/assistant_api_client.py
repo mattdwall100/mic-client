@@ -6,24 +6,44 @@ import requests
 
 from ..core.logging import get_logger
 from ..utils.latency_logger import log_latency
+from ..core.config import get_client_settings
 
 logger = get_logger(__name__)
+settings = get_client_settings()
 
 
 class AssistantAPIClient:
     def __init__(self, base_url: str, timeout_seconds: float = 300.0) -> None:
-        self.base_url = base_url.rstrip("/")
-        self.timeout_seconds = timeout_seconds
+        self.base_url = settings.assistant_api_base_url.rstrip("/")
+        self.lifecycle_manager_base_url = settings.lifecycle_manager_base_url.rstrip("/")
+        self.timeout_seconds = settings.assistant_api_timeout_seconds
 
-    def health(self) -> dict[str, Any]:
+    def health(self) -> bool:
         logger.info("api_request_started | endpoint=/health")
         with log_latency(logger, "api_request_completed", endpoint="/health"):
-            response = requests.get(
-                f"{self.base_url}/health",
-                timeout=self.timeout_seconds,
-            )
-            response.raise_for_status()
-            return response.json()
+            try:
+                response = requests.get(
+                    f"{self.base_url}/health",
+                    timeout=self.timeout_seconds,
+                )
+            except Exception as e:
+                logger.warning(f"health failed | exc={e}")
+                return False
+            else:
+                response = response.json()
+                status = int(response["status_code"])
+                logger.info(f"health response recieved | status={status}")
+                return status == 200
+        
+    def wake_server(self) -> None:
+        requests.post(
+            f"{self.lifecycle_manager_base_url}/services/local-assistant-server/start"
+        )
+    
+    def close_server(self) -> None:
+        requests.post(
+            f"{self.lifecycle_manager_base_url}/services/local-assistant-server/stop"
+        )
 
     def transcribe(self, audio_bytes: bytes, session_id: str | None) -> dict[str, Any]:
         """Transcribes audio bytes into text using piper python API"""

@@ -1,0 +1,16 @@
+services:
+  windows-mic-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: windows-mic-client
+    env_file:
+      - .env
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 80
+    ports:
+      - "80:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: no #Change in future if change monitoring

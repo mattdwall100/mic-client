@@ -1,4 +1,5 @@
 from __future__ import annotations
+import time
 
 from .audio.player import AudioPlayer
 from .audio.recorder import MicrophoneRecorder, PushToTalkController
@@ -31,9 +32,19 @@ def run() -> None:
     orchestrator = ClientOrchestrator(api=api, player=player, fallback_handler=handler)
 
     # server health check
+    # NOTE Replace ugly logic with helper:
+
     try:
-        orchestrator.health_check()
-        orchestrator.synthesize("Alfred Awake.")
+        if not orchestrator.health_check():
+            orchestrator.wake_server()
+            for i in range(15):
+                if i == 14:
+                    raise SystemError("Startup failed | timed out ")
+                if not orchestrator.health_check():
+                    time.sleep(1)
+                else:
+                    break
+                    
     except Exception as e:
         logger.warning(f"Health | Server not found: {e}")
         orchestrator.handle("server_not_found")
@@ -41,6 +52,8 @@ def run() -> None:
         # NOTE check if valid exit strategy
         time.sleep(5)
         os._exit(1)
+    else:
+        orchestrator.synthesize("Alfred Awake.")  
 
     # Initialise input/control layer
     mic_controller = PushToTalkController(
