@@ -1,5 +1,3 @@
-from typing import Any
-
 from ..audio.player import AudioPlayer
 from ..client.assistant_api_client import AssistantAPIClient
 from ..core.logging import get_logger
@@ -11,13 +9,16 @@ logger = get_logger(__name__)
 
 class ClientOrchestrator:
     def __init__(
-        self, api: AssistantAPIClient, player: AudioPlayer, fallback_handler: ClientFallbackHandler
+        self,
+        api: AssistantAPIClient,
+        player: AudioPlayer,
+        fallback_handler: ClientFallbackHandler,
     ) -> None:
         self.api = api
         self.player = player
         self.fallback_handler = fallback_handler
 
-        self.__session_id = None
+        self.__session_id: str | None = None
 
     # Getter, setter, deleter for session_id -----------------------------------
     @property
@@ -40,7 +41,6 @@ class ClientOrchestrator:
     @session_id.deleter
     def session_id(self) -> None:
         self.__session_id = None
-
 
     # Server management -------------------------------------------------------
     def health_check(self) -> bool:
@@ -76,12 +76,15 @@ class ClientOrchestrator:
     def synthesize(self, text: str) -> None:
         logger.info(f"interaction_started | session_id={self.session_id}")
         with log_latency(logger, "interaction_completed", session_id=self.session_id):
-            iter_response, resolved_session_id = self.api.synthesize(text, self.session_id)
-            with log_latency(logger, "playback_completed", session_id=resolved_session_id):
+            iter_response, resolved_session_id = self.api.synthesize(
+                text, self.session_id
+            )
+            with log_latency(
+                logger, "playback_completed", session_id=resolved_session_id
+            ):
                 logger.info(f"playback_started | session_id={resolved_session_id}")
                 self.player.play_wav_stream(iter_response)
             self.session_id = resolved_session_id
-
 
     # Utils ------------------------------------------------------------------------
     def handle(self, event_name: str) -> None:

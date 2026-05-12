@@ -18,7 +18,9 @@ class ClientFallbackHandler:
     def handle(self, event_name: str) -> None:
         if event_name not in self.fallback_events:
             logger.error(f"unknown event_name | event_name={event_name}")
-            raise ValueError("Unknown event name, should be 'server_not_found' or 'bad_audio'")
+            raise ValueError(
+                "Unknown event name, should be 'server_not_found' or 'bad_audio'"
+            )
 
         resolved_path = self.fallback_path + "/" + event_name + ".wav"
 

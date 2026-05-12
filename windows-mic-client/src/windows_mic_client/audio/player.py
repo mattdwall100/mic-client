@@ -37,7 +37,7 @@ class AudioPlayer:
 
         # If already playing audio, skip the fallback response and move on
         if self._playing:
-            logger.log("fallback_failed | Couldnt play as audio was playing")
+            logger.warning("fallback_failed | Couldnt play as audio was playing")
         else:
             # read fallback audio bytes
             with open(output_path, "rb") as f:
@@ -57,8 +57,10 @@ class AudioPlayer:
 
         # NOTE Can probably get rid of now, since have FallbackAudioStream object
         try:
-            chunk_iterator = response.iter_content(chunk_size=block_bytes)
-        except:
+            chunk_iterator = response.iter_content(
+                chunk_size=block_bytes
+            )  # flag as possible cause of collation
+        except Exception:
             chunk_iterator = response
 
         def _play_callback():

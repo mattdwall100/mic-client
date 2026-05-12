@@ -15,12 +15,14 @@ settings = get_client_settings()
 class AssistantAPIClient:
     def __init__(self, base_url: str, timeout_seconds: float = 300.0) -> None:
         self.base_url = settings.assistant_api_base_url.rstrip("/")
-        self.lifecycle_manager_base_url = settings.lifecycle_manager_base_url.rstrip("/")
+        self.lifecycle_manager_base_url = settings.lifecycle_manager_base_url.rstrip(
+            "/"
+        )
         self.timeout_seconds = settings.assistant_api_timeout_seconds
 
     def health(self) -> bool:
-        logger.info("api_request_started | endpoint=/health")
-        with log_latency(logger, "api_request_completed", endpoint="/health"):
+        logger.info("get /health started | endpoint=/health")
+        with log_latency(logger, "get /health completed"):
             try:
                 response = requests.get(
                     f"{self.base_url}/health",
@@ -30,16 +32,16 @@ class AssistantAPIClient:
                 logger.warning(f"health failed | exc={e}")
                 return False
             else:
-                response = response.json()
-                status = int(response["status_code"])
+                response_json = response.json()
+                status = str(response_json.get("status"))
                 logger.info(f"health response recieved | status={status}")
-                return status == 200
-        
+                return status == "ok"
+
     def wake_server(self) -> None:
         requests.post(
             f"{self.lifecycle_manager_base_url}/services/local-assistant-server/start"
         )
-    
+
     def close_server(self) -> None:
         requests.post(
             f"{self.lifecycle_manager_base_url}/services/local-assistant-server/stop"
@@ -47,9 +49,14 @@ class AssistantAPIClient:
 
     def transcribe(self, audio_bytes: bytes, session_id: str | None) -> dict[str, Any]:
         """Transcribes audio bytes into text using piper python API"""
-        logger.info(f"api_request_started | endpoint=/transcribe session_id={session_id}")
+        logger.info(
+            f"api_request_started | endpoint=/transcribe session_id={session_id}"
+        )
         with log_latency(
-            logger, "api_request_completed", endpoint="/transcribe", session_id=session_id
+            logger,
+            "api_request_completed",
+            endpoint="/transcribe",
+            session_id=session_id,
         ):
             files = {"file": ("audio.wav", audio_bytes, "audio/wav")}
             data = {"session_id": session_id}
@@ -64,9 +71,14 @@ class AssistantAPIClient:
             return response.json()
 
     def synthesize(self, text: str, session_id: str | None) -> Any:
-        logger.info(f"api_request_started | endpoint=/synthesize session_id={session_id}")
+        logger.info(
+            f"api_request_started | endpoint=/synthesize session_id={session_id}"
+        )
         with log_latency(
-            logger, "api_request_completed", endpoint="/synthesize", session_id=session_id
+            logger,
+            "api_request_completed",
+            endpoint="/synthesize",
+            session_id=session_id,
         ):
             payload = {"text": text, "session_id": session_id}
             response = requests.post(
@@ -81,7 +93,9 @@ class AssistantAPIClient:
     def speak(self, audio_bytes: bytes, session_id: str | None) -> Any:
         """Runs full pipeline on endpoint"""
         logger.info(f"api_request_started | endpoint=/speak session_id={session_id}")
-        with log_latency(logger, "api_request_completed", endpoint="/speak", session_id=session_id):
+        with log_latency(
+            logger, "api_request_completed", endpoint="/speak", session_id=session_id
+        ):
             files = {"file": ("audio.wav", audio_bytes, "audio/wav")}
             data = {"session_id": session_id}
 
@@ -96,7 +110,7 @@ class AssistantAPIClient:
             try:
                 fallback_text = response.headers.get("X-Fallback-TXT")
                 logger.info(f"Fallback_text | {fallback_text}")
-            except:
+            except Exception:
                 pass
 
             return response, resolved_id

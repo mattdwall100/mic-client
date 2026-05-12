@@ -20,7 +20,7 @@ class MicrophoneRecorder:
         self.sample_rate = sample_rate
         self.channels = channels
         self.block_size = block_size
-        self.frames = []
+        self.frames: list[bytes] = []
         self.stream = None
 
     def _callback(self, indata, frames, time, status):
@@ -66,7 +66,9 @@ class MicrophoneRecorder:
         if wait:
             sd.wait()  # Wait until max wait time is finished
         # turn to wav bytes before returning to controller and orchestrator and then api
-        audio_bytes = numpy_to_wav_bytes(np.asarray(audio, dtype="int16"), self.sample_rate)
+        audio_bytes = numpy_to_wav_bytes(
+            np.asarray(audio, dtype="int16"), self.sample_rate
+        )
         logger.info(f"recording_stopped | bytes_recorded={len(audio_bytes)}")
         return audio_bytes
 
@@ -91,7 +93,9 @@ class PushToTalkController:
     def stop_recording(self, key) -> None:
         if key == keyboard.Key.space and self.is_recording:
             self.is_recording = False
-            audio_bytes = self.recorder.stop()  # Stop the recording immediately and save bytes
+            audio_bytes = (
+                self.recorder.stop()
+            )  # Stop the recording immediately and save bytes
 
             # Process the recorded audio data
             if not audio_bytes:
@@ -116,7 +120,9 @@ class PushToTalkController:
 
     def listen_for_keypresses(self) -> None:
         """Listen for keypresses to control recording."""
-        listener = keyboard.Listener(on_press=self.start_recording, on_release=self.stop_recording)
+        listener = keyboard.Listener(
+            on_press=self.start_recording, on_release=self.stop_recording
+        )
 
         listener.start()
         listener.join()

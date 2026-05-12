@@ -17,7 +17,7 @@ def log_latency(logger: Logger, event_name: str, level: str = "info", **kwargs):
 
         # Add latency and error to the log string then construct full string
         kwargs["latency_ms"] = latency_ms
-        kwargs["error"] = type(e).__name__
+        kwargs["error"] = str(e)
         kv_pairs = " ".join(f"{k}={v}" for k, v in kwargs.items())
 
         logger.error(f"{event_name}_failed | {kv_pairs}")
