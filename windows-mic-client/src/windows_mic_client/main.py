@@ -41,7 +41,7 @@ def run() -> None:
                 if i == 14:
                     raise SystemError("Startup failed | timed out ")
                 if not orchestrator.health_check():
-                    time.sleep(1)
+                    time.sleep(3)
                 else:
                     break
                     
