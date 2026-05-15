@@ -1,5 +1,6 @@
 # Local AI Assistant Mic Clients
 
+**Entirely manually coded **without** AI coding agents**
 Client-side microphone/speaker applications for the Local AI Assistant system. This repository contains the lightweight edge clients that capture audio, send it to the `local-assistant-server`, receive streamed audio responses, and play them locally.
 
 The server performs the AI-heavy work: STT, LLM inference, tool execution, memory, and TTS. The clients stay focused on device I/O, local controls, playback, and local fallback behavior.
