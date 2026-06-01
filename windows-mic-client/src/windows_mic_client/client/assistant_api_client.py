@@ -104,6 +104,7 @@ class AssistantAPIClient:
                 files=files,
                 data=data,
                 timeout=self.timeout_seconds,
+                stream=True,
             )
             resolved_id = response.headers.get("X-Session-ID")
 

@@ -32,8 +32,8 @@ class AudioPlayer:
         sd.wait()
         logger.info("playback_finished | status=completed")
 
-    def play_file(self, output_path: str) -> None:
-        output_path = Path(output_path)
+    def play_file(self, output_path_str: str) -> None:
+        output_path = Path(output_path_str)
 
         # If already playing audio, skip the fallback response and move on
         if self._playing:
@@ -60,7 +60,8 @@ class AudioPlayer:
             chunk_iterator = response.iter_content(
                 chunk_size=block_bytes
             )  # flag as possible cause of collation
-        except Exception:
+        except Exception as e:
+            logger.warning(f"play_wav_stream failed | iter_content exception={e}")
             chunk_iterator = response
 
         def _play_callback():
