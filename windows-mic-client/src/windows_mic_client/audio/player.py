@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import threading
 from collections.abc import Iterable
+from itertools import chain
 from pathlib import Path
 
 import numpy as np
@@ -11,6 +12,7 @@ import soundfile as sf
 from fastapi.responses import StreamingResponse
 
 from ..core.logging import get_logger
+from ..utils.latency_logger import log_latency
 
 logger = get_logger(__name__)
 
@@ -72,16 +74,24 @@ class AudioPlayer:
             logger.info("playback_started | type=stream")
 
             try:
+                # Time from playback thread start to first audio byte from server
+                chunks = iter(chunk_iterator)
+                with log_latency(logger, "first_audio_chunk_received"):
+                    first_chunk = next(chunks, None)
+
                 # Writes chunks to stream until stopped
-                for chunk in chunk_iterator:
-                    if self.stop_flag.is_set():
-                        logger.info("playback_finished | status=interrupted")
-                        break
-                    elif not chunk:
-                        continue
-                    else:
-                        audio = np.frombuffer(chunk, dtype="int16")
-                        self.current_stream.write(audio)
+                with log_latency(logger, "playback_completed"):
+                    for chunk in chain(
+                        [first_chunk] if first_chunk is not None else [], chunks
+                    ):
+                        if self.stop_flag.is_set():
+                            logger.info("playback_finished | status=interrupted")
+                            break
+                        elif not chunk:
+                            continue
+                        else:
+                            audio = np.frombuffer(chunk, dtype="int16")
+                            self.current_stream.write(audio)
             finally:
                 response.close()  # Closes the HTTP stream, to save bandwidth
                 try:

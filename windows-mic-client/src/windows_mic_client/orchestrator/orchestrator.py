@@ -62,7 +62,7 @@ class ClientOrchestrator:
         with log_latency(logger, "interaction_completed", session_id=self.session_id):
             response, ressolved_id = self.api.speak(audio_bytes, self.session_id)
 
-            with log_latency(logger, "playback_completed", session_id=ressolved_id):
+            with log_latency(logger, "playback_dispatched", session_id=ressolved_id):
                 logger.info(f"playback_started | session_id={ressolved_id}")
                 self.player.play_wav_stream(response)
 
@@ -80,7 +80,7 @@ class ClientOrchestrator:
                 text, self.session_id
             )
             with log_latency(
-                logger, "playback_completed", session_id=resolved_session_id
+                logger, "playback_dispatched", session_id=resolved_session_id
             ):
                 logger.info(f"playback_started | session_id={resolved_session_id}")
                 self.player.play_wav_stream(iter_response)
