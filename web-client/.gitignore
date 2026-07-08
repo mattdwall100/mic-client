@@ -1,0 +1,2 @@
+# Machine-specific endpoint overrides (mirror .env conventions). Commit config.example.js.
+config.js

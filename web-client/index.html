@@ -1,0 +1,1482 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Alfred — Voice Client</title>
+    <style>
+      :root {
+        --bg: #0f1220;
+        --panel: #171a2b;
+        --panel-2: #1f2340;
+        --text: #e7e9f3;
+        --muted: #9aa0bd;
+        --accent: #6c7bff;
+        --accent-2: #4b5bd6;
+        --good: #35c98b;
+        --warn: #e2b23c;
+        --bad: #e2543c;
+        --user: #24406b;
+        --assistant: #23294a;
+        --tool: #2c2450;
+        --border: #2a2f4f;
+        --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+        background: radial-gradient(
+          1200px 600px at 70% -10%,
+          #1a1f3a 0%,
+          var(--bg) 55%
+        );
+        color: var(--text);
+        display: flex;
+        justify-content: center;
+      }
+      .app {
+        width: min(920px, 100%);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        padding: 20px clamp(12px, 3vw, 28px) 28px;
+        gap: 16px;
+      }
+
+      /* Header */
+      header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .logo {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        display: grid;
+        place-items: center;
+        font-size: 20px;
+        box-shadow: var(--shadow);
+      }
+      header h1 {
+        font-size: 20px;
+        margin: 0;
+        letter-spacing: 0.3px;
+      }
+      header .sub {
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--muted);
+        box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+      }
+      .dot.on {
+        background: var(--good);
+        box-shadow: 0 0 10px var(--good);
+      }
+      .dot.warm {
+        background: var(--warn);
+        box-shadow: 0 0 10px var(--warn);
+        animation: pulse 1.1s infinite;
+      }
+      .dot.off {
+        background: var(--muted);
+      }
+      .dot.bad {
+        background: var(--bad);
+        box-shadow: 0 0 10px var(--bad);
+      }
+      @keyframes pulse {
+        0% {
+          opacity: 0.35;
+        }
+        50% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0.35;
+        }
+      }
+
+      /* Cards */
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow: var(--shadow);
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      button {
+        font: inherit;
+        color: var(--text);
+        cursor: pointer;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-weight: 600;
+        transition:
+          transform 0.05s ease,
+          background 0.15s ease,
+          opacity 0.15s ease;
+      }
+      button:hover:not(:disabled) {
+        background: #262c50;
+      }
+      button:active:not(:disabled) {
+        transform: translateY(1px);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      button.primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        border: none;
+      }
+      button.danger {
+        background: #3a2036;
+        border-color: #5a2a49;
+      }
+      button.danger:hover:not(:disabled) {
+        background: #4a2744;
+      }
+
+      /* Push to talk */
+      .ptt-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0 2px;
+      }
+      .ptt {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle at 50% 35%,
+          #7683ff,
+          var(--accent-2)
+        );
+        border: none;
+        color: white;
+        font-weight: 700;
+        font-size: 15px;
+        display: grid;
+        place-items: center;
+        user-select: none;
+        touch-action: none;
+        box-shadow: 0 10px 30px rgba(76, 91, 214, 0.45);
+        position: relative;
+      }
+      .ptt:disabled {
+        background: #2a2f4f;
+        box-shadow: none;
+        color: var(--muted);
+      }
+      .ptt.recording {
+        background: radial-gradient(circle at 50% 35%, #ff8a8a, #d64b4b);
+        box-shadow:
+          0 0 0 8px rgba(214, 75, 75, 0.18),
+          0 10px 30px rgba(214, 75, 75, 0.5);
+        animation: rec 1s infinite;
+      }
+      @keyframes rec {
+        0% {
+          box-shadow:
+            0 0 0 4px rgba(214, 75, 75, 0.28),
+            0 10px 30px rgba(214, 75, 75, 0.5);
+        }
+        50% {
+          box-shadow:
+            0 0 0 14px rgba(214, 75, 75, 0.08),
+            0 10px 30px rgba(214, 75, 75, 0.5);
+        }
+        100% {
+          box-shadow:
+            0 0 0 4px rgba(214, 75, 75, 0.28),
+            0 10px 30px rgba(214, 75, 75, 0.5);
+        }
+      }
+      .ptt.busy {
+        background: radial-gradient(circle at 50% 35%, #f2cf7a, #d99a2b);
+        color: #201a08;
+        box-shadow: 0 10px 30px rgba(217, 154, 43, 0.4);
+      }
+      .ptt.busy::before {
+        content: "";
+        position: absolute;
+        inset: -7px;
+        border-radius: 50%;
+        background: conic-gradient(
+          from 0deg,
+          rgba(255, 255, 255, 0) 0 62%,
+          #ffe6ad 90%,
+          rgba(255, 255, 255, 0) 100%
+        );
+        -webkit-mask: radial-gradient(
+          farthest-side,
+          transparent calc(100% - 5px),
+          #000 calc(100% - 4px)
+        );
+        mask: radial-gradient(
+          farthest-side,
+          transparent calc(100% - 5px),
+          #000 calc(100% - 4px)
+        );
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .ptt-hint {
+        color: var(--muted);
+        font-size: 12px;
+        min-height: 16px;
+      }
+      .ptt-hint.active {
+        color: var(--text);
+        font-weight: 600;
+        font-size: 13px;
+      }
+
+      /* Waveform */
+      .wave-card {
+        padding: 10px 12px;
+      }
+      canvas#wave {
+        width: 100%;
+        height: 90px;
+        display: block;
+        border-radius: 10px;
+        background: #10132420;
+      }
+
+      /* Conversation */
+      .convo {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow-y: auto;
+        max-height: 46vh;
+        padding-right: 4px;
+      }
+      .convo::-webkit-scrollbar {
+        width: 8px;
+      }
+      .convo::-webkit-scrollbar-thumb {
+        background: #2a2f4f;
+        border-radius: 8px;
+      }
+      .msg {
+        max-width: 82%;
+        padding: 10px 14px;
+        border-radius: 14px;
+        line-height: 1.45;
+        font-size: 14.5px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+      .msg.user {
+        align-self: flex-end;
+        background: var(--user);
+        border-bottom-right-radius: 4px;
+      }
+      .msg.assistant {
+        align-self: flex-start;
+        background: var(--assistant);
+        border-bottom-left-radius: 4px;
+      }
+      .msg.tool {
+        align-self: flex-start;
+        background: var(--tool);
+        border: 1px dashed #4a3f80;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12.5px;
+        color: #cbc3ff;
+      }
+      .msg.error {
+        align-self: center;
+        background: #3a1f24;
+        border: 1px solid #6a2b32;
+        color: #ffb9bd;
+        font-size: 13px;
+        text-align: center;
+      }
+      .msg .who {
+        display: block;
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 3px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+      }
+      .cursor::after {
+        content: "▋";
+        color: var(--accent);
+        animation: blink 1s steps(2) infinite;
+        margin-left: 1px;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+      .empty {
+        color: var(--muted);
+        text-align: center;
+        margin: auto;
+        font-size: 14px;
+      }
+
+      /* Banner */
+      .banner {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        background: #3a1f24;
+        border: 1px solid #6a2b32;
+        color: #ffc4c8;
+        padding: 10px 14px;
+        border-radius: 12px;
+        font-size: 13.5px;
+      }
+      .banner.show {
+        display: flex;
+      }
+      .banner button {
+        margin-left: auto;
+        padding: 4px 10px;
+        background: transparent;
+        border-color: #6a2b32;
+        color: #ffc4c8;
+      }
+
+      footer {
+        color: var(--muted);
+        font-size: 11.5px;
+        text-align: center;
+        margin-top: 4px;
+      }
+      footer code {
+        color: #b9c0e6;
+      }
+      .label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+
+      /* Status stack: primary server pill + secondary manager chip */
+      .status-stack {
+        margin-left: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 6px;
+      }
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .mgr-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--muted);
+        padding-right: 4px;
+      }
+      .mdot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+      .mdot.online {
+        background: var(--good);
+      }
+      .mdot.offline {
+        background: var(--bad);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <div class="logo">🎙️</div>
+        <div>
+          <h1>Alfred</h1>
+          <div class="sub">Local voice assistant</div>
+        </div>
+        <div class="status-stack">
+          <div class="status-pill" title="Local assistant server">
+            <span id="statusDot" class="dot off"></span>
+            <span id="statusText">Checking…</span>
+          </div>
+          <div class="mgr-chip" title="Lifecycle manager (control plane)">
+            <span id="mgrDot" class="mdot"></span>
+            <span id="mgrText">Manager…</span>
+          </div>
+        </div>
+      </header>
+
+      <div id="banner" class="banner">
+        <span id="bannerText"></span>
+        <button id="bannerClose">Dismiss</button>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <span class="label">Server</span>
+          <button id="startBtn" class="primary">Start server</button>
+          <button id="stopBtn" class="danger">Stop server</button>
+          <span
+            id="serverHint"
+            style="color: var(--muted); font-size: 13px; margin-left: auto"
+          ></span>
+        </div>
+      </div>
+
+      <div class="card ptt-wrap">
+        <button id="pttBtn" class="ptt" disabled>Hold&nbsp;to&nbsp;talk</button>
+        <div id="pttHint" class="ptt-hint">Waiting for server…</div>
+      </div>
+
+      <div class="card wave-card">
+        <canvas id="wave"></canvas>
+      </div>
+
+      <div
+        class="card"
+        style="
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 180px;
+        "
+      >
+        <span class="label" style="margin-bottom: 10px">Conversation</span>
+        <div id="convo" class="convo">
+          <div class="empty" id="emptyHint">
+            Hold the mic button and speak to begin.
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        API <code id="apiUrl"></code> · Lifecycle <code id="lifeUrl"></code> ·
+        audio: 16-bit PCM · <span id="sid">no session</span>
+      </footer>
+    </div>
+
+    <!-- Optional local overrides (a ".env" for the browser). Safe to omit: the client
+         falls back to the built-in defaults if this file is absent. -->
+    <script src="config.js"></script>
+
+    <script>
+      "use strict";
+      /* ============================================================================
+       * Alfred web client — single-file, no dependencies.
+       *
+       * Sections:
+       *   CONFIG   endpoints + constants (overridable via ?api= / ?lifecycle=)
+       *   bus      tiny pub/sub event bus that decouples the stream demuxer from the UI
+       *   state    one plain object; setState() -> render()
+       *   API      health / lifecycle start-stop-status / speak
+       *   Recorder getUserMedia capture -> in-browser WAV encoding
+       *   Player   Web Audio playback queue + AnalyserNode (interruptible)
+       *   Waveform canvas render loop driven by the player's analyser
+       *   Demux    NDJSON text+audio stream parsing -> bus events
+       *   Convo    conversation transcript rendering
+       *   wire-up  buttons, push-to-talk (pointer + spacebar), status polling
+       * ========================================================================== */
+
+      /* ---- CONFIG ----------------------------------------------------------------
+       * Endpoint resolution precedence (highest first):
+       *   1. URL query param   ?api=... / ?lifecycle=...
+       *   2. window.ALFRED_CONFIG from the optional sibling config.js (a ".env" for
+       *      the browser — a static page cannot read a real .env, this is the equivalent)
+       *   3. built-in defaults below
+       * ---------------------------------------------------------------------------- */
+      const params = new URLSearchParams(location.search);
+      const EXT = window.ALFRED_CONFIG || {};
+      const CONFIG = {
+        ASSISTANT_BASE: (
+          params.get("api") ||
+          EXT.api ||
+          "http://192.168.0.219:8000"
+        ).replace(/\/$/, ""),
+        LIFECYCLE_BASE: (
+          params.get("lifecycle") ||
+          EXT.lifecycle ||
+          "http://192.168.0.219:9000"
+        ).replace(/\/$/, ""),
+        SERVICE: "local-assistant-server",
+        PLAYBACK_SAMPLE_RATE: 22050, // Piper raw PCM: 16-bit signed, mono, 22.05kHz
+        STATUS_POLL_MS: 3000,
+        MIN_RECORDING_MS: 300, // below this => "no audio captured"
+        MAX_RECORDING_MS: 60000, // safety auto-stop so a lost release can't stick forever
+        SILENCE_PEAK: 0.012, // peak amplitude floor for "silence"
+        MULTIPLEX_ACCEPT: "application/x-ndjson",
+      };
+
+      /* ---- bus ------------------------------------------------------------------- */
+      const bus = (() => {
+        const map = new Map();
+        return {
+          on(type, fn) {
+            if (!map.has(type)) map.set(type, []);
+            map.get(type).push(fn);
+          },
+          emit(type, payload) {
+            (map.get(type) || []).forEach((fn) => {
+              try {
+                fn(payload);
+              } catch (e) {
+                console.error(e);
+              }
+            });
+          },
+        };
+      })();
+
+      /* ---- state ----------------------------------------------------------------- */
+      const state = {
+        lifecycle: "checking", // control plane: checking | online | offline
+        server: "checking", // assistant server: checking | off | starting | warming | ready | stopping
+        recording: false,
+        busy: false, // a /speak turn is in flight
+        speaking: false, // audio is currently playing back
+        sessionId: "",
+      };
+      function setState(patch) {
+        Object.assign(state, patch);
+        render();
+      }
+
+      /* ---- DOM handles ----------------------------------------------------------- */
+      const el = {
+        statusDot: document.getElementById("statusDot"),
+        statusText: document.getElementById("statusText"),
+        mgrDot: document.getElementById("mgrDot"),
+        mgrText: document.getElementById("mgrText"),
+        startBtn: document.getElementById("startBtn"),
+        stopBtn: document.getElementById("stopBtn"),
+        serverHint: document.getElementById("serverHint"),
+        ptt: document.getElementById("pttBtn"),
+        pttHint: document.getElementById("pttHint"),
+        convo: document.getElementById("convo"),
+        emptyHint: document.getElementById("emptyHint"),
+        banner: document.getElementById("banner"),
+        bannerText: document.getElementById("bannerText"),
+        bannerClose: document.getElementById("bannerClose"),
+        apiUrl: document.getElementById("apiUrl"),
+        lifeUrl: document.getElementById("lifeUrl"),
+        sid: document.getElementById("sid"),
+        wave: document.getElementById("wave"),
+      };
+      el.apiUrl.textContent = CONFIG.ASSISTANT_BASE;
+      el.lifeUrl.textContent = CONFIG.LIFECYCLE_BASE;
+
+      // Primary pill = local assistant server state.
+      const SERVER_UI = {
+        checking: { text: "Checking…", dot: "off" },
+        off: { text: "Server off", dot: "off" },
+        starting: { text: "Starting…", dot: "warm" },
+        warming: { text: "Warming up…", dot: "warm" },
+        ready: { text: "Ready", dot: "on" },
+        stopping: { text: "Stopping…", dot: "warm" },
+      };
+      // Secondary chip = lifecycle manager reachability.
+      const MGR_UI = {
+        checking: { text: "Manager…", dot: "" },
+        online: { text: "Manager online", dot: "online" },
+        offline: { text: "Manager offline", dot: "offline" },
+      };
+
+      function render() {
+        const sv = SERVER_UI[state.server] || SERVER_UI.checking;
+        el.statusText.textContent = sv.text;
+        el.statusDot.className = "dot " + sv.dot;
+
+        const mg = MGR_UI[state.lifecycle] || MGR_UI.checking;
+        el.mgrText.textContent = mg.text;
+        el.mgrDot.className = "mdot " + mg.dot;
+
+        const ready = state.server === "ready";
+        const online = state.lifecycle === "online";
+        const canTalk = ready && !state.busy;
+        el.ptt.disabled = !canTalk;
+        // Start only when the manager is reachable and the server is down.
+        el.startBtn.disabled =
+          !online || !(state.server === "off" || state.server === "checking");
+        // Stop only when the server is up or on its way up.
+        el.stopBtn.disabled =
+          !online ||
+          !(
+            state.server === "ready" ||
+            state.server === "warming" ||
+            state.server === "starting"
+          );
+
+        el.ptt.classList.toggle("recording", state.recording);
+        el.ptt.classList.toggle("busy", state.busy && !state.recording);
+        el.ptt.textContent = state.recording
+          ? "Listening…"
+          : state.busy
+            ? state.speaking
+              ? "Speaking…"
+              : "Thinking…"
+            : "Hold to talk";
+
+        el.pttHint.classList.toggle("active", state.recording || state.busy);
+        if (state.recording) el.pttHint.textContent = "Release to send";
+        else if (state.busy)
+          el.pttHint.textContent = state.speaking
+            ? "🔊 Alfred is speaking…"
+            : "✔ Message sent · thinking…";
+        else if (canTalk)
+          el.pttHint.textContent = "Hold the button or the space bar";
+        else if (!online) el.pttHint.textContent = "Lifecycle manager offline";
+        else if (state.server === "off")
+          el.pttHint.textContent = "Press Start server to begin";
+        else if (!ready) el.pttHint.textContent = "Waiting for server…";
+        else el.pttHint.textContent = "";
+
+        el.sid.textContent = state.sessionId
+          ? "session " + state.sessionId.slice(0, 8)
+          : "no session";
+      }
+
+      /* ---- banner / errors ------------------------------------------------------- */
+      function showError(message) {
+        el.bannerText.textContent = message;
+        el.banner.classList.add("show");
+        console.warn("[alfred]", message);
+      }
+      el.bannerClose.addEventListener("click", () =>
+        el.banner.classList.remove("show"),
+      );
+
+      /* ---- API ------------------------------------------------------------------- */
+      const API = {
+        async health() {
+          try {
+            const r = await fetch(CONFIG.ASSISTANT_BASE + "/health", {
+              cache: "no-store",
+            });
+            if (!r.ok) return false;
+            const j = await r.json();
+            return j && j.status === "ok";
+          } catch {
+            return false;
+          }
+        },
+        async lifecycleStatus() {
+          // Returns "on" | "off" | "starting" | "stopping".
+          // Throws if the lifecycle manager itself is unreachable (network / CORS / HTTP error).
+          const r = await fetch(
+            `${CONFIG.LIFECYCLE_BASE}/services/${CONFIG.SERVICE}/status`,
+            { cache: "no-store" },
+          );
+          if (!r.ok) throw new Error(`status HTTP ${r.status}`);
+          const j = await r.json();
+          return j.content;
+        },
+        async start() {
+          const r = await fetch(
+            `${CONFIG.LIFECYCLE_BASE}/services/${CONFIG.SERVICE}/start`,
+            { method: "POST" },
+          );
+          if (!r.ok) throw new Error(`Start failed (HTTP ${r.status})`);
+          return r.json();
+        },
+        async stop() {
+          const r = await fetch(
+            `${CONFIG.LIFECYCLE_BASE}/services/${CONFIG.SERVICE}/stop`,
+            { method: "POST" },
+          );
+          if (!r.ok) throw new Error(`Stop failed (HTTP ${r.status})`);
+          return r.json();
+        },
+        async speak(wavBytes, sessionId) {
+          const form = new FormData();
+          form.append(
+            "file",
+            new Blob([wavBytes], { type: "audio/wav" }),
+            "audio.wav",
+          );
+          form.append("session_id", sessionId || "");
+          return fetch(CONFIG.ASSISTANT_BASE + "/speak", {
+            method: "POST",
+            body: form,
+            headers: { Accept: CONFIG.MULTIPLEX_ACCEPT },
+          });
+        },
+      };
+
+      /* ---- Recorder (getUserMedia -> WAV) ----------------------------------------
+       * The microphone stream, its AudioContext, source and muted sink are acquired
+       * ONCE and kept alive for the whole session, so the browser only ever shows the
+       * permission prompt on the first press (crucial on file:// origins, which don't
+       * persist permission grants between getUserMedia calls). Each recording just
+       * attaches/detaches a fresh capture node to the persistent graph.
+       * -------------------------------------------------------------------------- */
+      const Recorder = {
+        ctx: null,
+        stream: null,
+        source: null,
+        processor: null,
+        mute: null,
+        chunks: [],
+        sampleRate: 0,
+        active: false,
+
+        /** Acquire (once) the persistent mic stream + audio graph. May prompt. */
+        async ensureStream() {
+          if (this.stream && this.stream.active && this.ctx) {
+            if (this.ctx.state === "suspended") {
+              try {
+                await this.ctx.resume();
+              } catch {}
+            }
+            return;
+          }
+          this.stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              channelCount: 1,
+              echoCancellation: true,
+              noiseSuppression: true,
+            },
+          });
+          this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+          if (this.ctx.state === "suspended") {
+            try {
+              await this.ctx.resume();
+            } catch {}
+          }
+          this.sampleRate = this.ctx.sampleRate;
+          this.source = this.ctx.createMediaStreamSource(this.stream);
+          // A muted sink keeps the (deprecated but universally-supported, single-file
+          // friendly) ScriptProcessor "live" without echoing the mic to the speakers.
+          this.mute = this.ctx.createGain();
+          this.mute.gain.value = 0;
+          this.mute.connect(this.ctx.destination);
+        },
+
+        async start() {
+          await this.ensureStream();
+          this.chunks = [];
+          this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
+          this.processor.onaudioprocess = (e) => {
+            this.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+          };
+          this.source.connect(this.processor);
+          this.processor.connect(this.mute);
+          this.active = true;
+        },
+
+        /** Stops capture and returns { bytes, durationMs, peak }. Keeps the mic open. */
+        async stop() {
+          this.active = false;
+          if (this.processor) {
+            try {
+              this.source.disconnect(this.processor);
+            } catch {}
+            try {
+              this.processor.disconnect();
+            } catch {}
+            this.processor.onaudioprocess = null;
+            this.processor = null;
+          }
+          // NB: stream / ctx / source / mute are intentionally left alive for reuse.
+
+          const rate = this.sampleRate;
+          const samples = mergeFloat32(this.chunks);
+          this.chunks = [];
+          let peak = 0;
+          for (let i = 0; i < samples.length; i++) {
+            const a = Math.abs(samples[i]);
+            if (a > peak) peak = a;
+          }
+          const durationMs = rate ? (samples.length / rate) * 1000 : 0;
+          return { bytes: encodeWav(samples, rate), durationMs, peak };
+        },
+      };
+
+      function mergeFloat32(chunks) {
+        let total = 0;
+        for (const c of chunks) total += c.length;
+        const out = new Float32Array(total);
+        let off = 0;
+        for (const c of chunks) {
+          out.set(c, off);
+          off += c.length;
+        }
+        return out;
+      }
+
+      /** Encode mono Float32 samples as a 16-bit PCM WAV (Whisper resamples server-side). */
+      function encodeWav(samples, sampleRate) {
+        const bytesPerSample = 2,
+          numChannels = 1;
+        const dataSize = samples.length * bytesPerSample;
+        const buffer = new ArrayBuffer(44 + dataSize);
+        const view = new DataView(buffer);
+        const writeStr = (off, s) => {
+          for (let i = 0; i < s.length; i++)
+            view.setUint8(off + i, s.charCodeAt(i));
+        };
+        writeStr(0, "RIFF");
+        view.setUint32(4, 36 + dataSize, true);
+        writeStr(8, "WAVE");
+        writeStr(12, "fmt ");
+        view.setUint32(16, 16, true); // PCM chunk size
+        view.setUint16(20, 1, true); // audio format = PCM
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * numChannels * bytesPerSample, true); // byte rate
+        view.setUint16(32, numChannels * bytesPerSample, true); // block align
+        view.setUint16(34, 16, true); // bits per sample
+        writeStr(36, "data");
+        view.setUint32(40, dataSize, true);
+        let off = 44;
+        for (let i = 0; i < samples.length; i++, off += 2) {
+          const s = Math.max(-1, Math.min(1, samples[i]));
+          view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+        }
+        return new Uint8Array(buffer);
+      }
+
+      /* ---- Player (Web Audio queue + analyser) ----------------------------------- */
+      const Player = {
+        ctx: null,
+        analyser: null,
+        gain: null,
+        sources: new Set(),
+        nextTime: 0,
+        streamDone: true,
+
+        ensure() {
+          if (this.ctx) return;
+          this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+          this.analyser = this.ctx.createAnalyser();
+          this.analyser.fftSize = 2048;
+          this.gain = this.ctx.createGain();
+          this.analyser.connect(this.gain);
+          this.gain.connect(this.ctx.destination);
+        },
+        async resume() {
+          this.ensure();
+          if (this.ctx.state === "suspended") {
+            try {
+              await this.ctx.resume();
+            } catch {}
+          }
+        },
+
+        beginTurn() {
+          this.interrupt();
+          this.streamDone = false;
+        },
+
+        /** Immediately stop any in-progress playback. */
+        interrupt() {
+          for (const src of this.sources) {
+            try {
+              src.onended = null;
+              src.stop();
+            } catch {}
+          }
+          this.sources.clear();
+          this.nextTime = this.ctx ? this.ctx.currentTime : 0;
+          if (state.speaking) setState({ speaking: false });
+        },
+
+        /** Schedule a raw 16-bit PCM chunk (mono, 22.05kHz) gaplessly after the queue. */
+        enqueuePCM(bytes) {
+          if (!bytes || !bytes.byteLength) return;
+          this.ensure();
+          const n = Math.floor(bytes.byteLength / 2);
+          if (!n) return;
+          const view = new DataView(
+            bytes.buffer,
+            bytes.byteOffset,
+            bytes.byteLength,
+          );
+          const buf = this.ctx.createBuffer(1, n, CONFIG.PLAYBACK_SAMPLE_RATE);
+          const ch = buf.getChannelData(0);
+          for (let i = 0; i < n; i++)
+            ch[i] = view.getInt16(i * 2, true) / 32768;
+          this._schedule(buf);
+        },
+
+        /** Play a complete WAV/encoded blob (used for the octet-stream fallback path). */
+        async playWav(arrayBuffer) {
+          this.ensure();
+          try {
+            const buf = await this.ctx.decodeAudioData(arrayBuffer.slice(0));
+            this._schedule(buf);
+          } catch (e) {
+            showError("Could not decode fallback audio.");
+          }
+        },
+
+        _schedule(buf) {
+          const src = this.ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(this.analyser);
+          const startAt = Math.max(this.nextTime, this.ctx.currentTime);
+          src.start(startAt);
+          this.nextTime = startAt + buf.duration;
+          this.sources.add(src);
+          if (!state.speaking) setState({ speaking: true });
+          src.onended = () => {
+            this.sources.delete(src);
+            if (this.sources.size === 0 && this.streamDone && state.speaking)
+              setState({ speaking: false });
+          };
+        },
+
+        endTurn() {
+          this.streamDone = true;
+          if (this.sources.size === 0 && state.speaking)
+            setState({ speaking: false });
+        },
+      };
+
+      /* ---- Waveform (canvas driven by the player analyser) ----------------------- */
+      const Waveform = (() => {
+        const cvs = el.wave,
+          ctx = cvs.getContext("2d");
+        let w = 0,
+          h = 0,
+          buf = null;
+        function resize() {
+          const dpr = window.devicePixelRatio || 1;
+          w = cvs.clientWidth;
+          h = cvs.clientHeight;
+          cvs.width = Math.round(w * dpr);
+          cvs.height = Math.round(h * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        window.addEventListener("resize", resize);
+        function frame() {
+          requestAnimationFrame(frame);
+          if (!w) resize();
+          ctx.clearRect(0, 0, w, h);
+          const active = state.speaking && Player.analyser;
+          const grad = ctx.createLinearGradient(0, 0, w, 0);
+          grad.addColorStop(0, "#6c7bff");
+          grad.addColorStop(1, "#35c98b");
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = active ? grad : "#2a2f4f";
+          ctx.beginPath();
+          if (active) {
+            const an = Player.analyser;
+            if (!buf || buf.length !== an.fftSize)
+              buf = new Uint8Array(an.fftSize);
+            an.getByteTimeDomainData(buf);
+            const step = buf.length / w;
+            for (let x = 0; x < w; x++) {
+              const v = buf[Math.floor(x * step)] / 128 - 1; // -1..1
+              const y = h / 2 + v * (h / 2 - 4);
+              x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            }
+          } else {
+            ctx.moveTo(0, h / 2);
+            ctx.lineTo(w, h / 2); // flat line when idle
+          }
+          ctx.stroke();
+        }
+        return {
+          start() {
+            resize();
+            requestAnimationFrame(frame);
+          },
+        };
+      })();
+
+      /* ---- Demux (NDJSON text+audio stream) -------------------------------------- */
+      function base64ToBytes(b64) {
+        const bin = atob(b64);
+        const out = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+        return out;
+      }
+      function concatBytes(a, b) {
+        const out = new Uint8Array(a.length + b.length);
+        out.set(a, 0);
+        out.set(b, a.length);
+        return out;
+      }
+      function indexOfByte(arr, byte, from) {
+        for (let i = from; i < arr.length; i++) if (arr[i] === byte) return i;
+        return -1;
+      }
+
+      function handleFrame(line, decoder) {
+        let frame;
+        try {
+          frame = JSON.parse(line);
+        } catch {
+          bus.emit("stream-error", "Malformed stream frame.");
+          return;
+        }
+        switch (frame.type) {
+          case "text":
+            bus.emit("assistant-text", frame.data);
+            break;
+          case "audio":
+            Player.enqueuePCM(base64ToBytes(frame.data));
+            break;
+          case "error":
+            bus.emit("stream-error", frame.data);
+            break;
+          case "done":
+            break; // stream naturally ends
+        }
+      }
+
+      /**
+       * Parse the NDJSON body. Defensive: if the very first non-whitespace byte is not '{'
+       * (a known server fallback path can emit raw PCM mislabeled as x-ndjson), switch to
+       * treating the whole body as raw PCM instead of failing.
+       */
+      async function demuxNdjson(body) {
+        const reader = body.getReader();
+        const decoder = new TextDecoder();
+        let buf = new Uint8Array(0);
+        let mode = null; // 'ndjson' | 'raw'
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf = buf.length ? concatBytes(buf, value) : value;
+
+          if (mode === null) {
+            let i = 0;
+            while (
+              i < buf.length &&
+              (buf[i] === 10 || buf[i] === 13 || buf[i] === 32)
+            )
+              i++;
+            if (i >= buf.length) continue; // only whitespace so far
+            mode = buf[i] === 0x7b /* { */ ? "ndjson" : "raw";
+          }
+          if (mode === "raw") {
+            Player.enqueuePCM(buf);
+            buf = new Uint8Array(0);
+            continue;
+          }
+
+          let start = 0,
+            nl;
+          while ((nl = indexOfByte(buf, 10, start)) !== -1) {
+            const line = decoder.decode(buf.subarray(start, nl)).trim();
+            start = nl + 1;
+            if (line) handleFrame(line, decoder);
+          }
+          buf = buf.subarray(start);
+        }
+        // flush trailing bytes
+        if (mode === "raw" && buf.length) Player.enqueuePCM(buf);
+        else if (mode === "ndjson" && buf.length) {
+          const line = decoder.decode(buf).trim();
+          if (line) handleFrame(line, decoder);
+        }
+      }
+
+      /* ---- Conversation view ----------------------------------------------------- */
+      const Convo = (() => {
+        let assistantEl = null;
+        function clearEmpty() {
+          if (el.emptyHint) {
+            el.emptyHint.remove();
+            el.emptyHint = null;
+          }
+        }
+        function scroll() {
+          el.convo.scrollTop = el.convo.scrollHeight;
+        }
+        function bubble(cls, who, text) {
+          clearEmpty();
+          const div = document.createElement("div");
+          div.className = "msg " + cls;
+          if (who) {
+            const w = document.createElement("span");
+            w.className = "who";
+            w.textContent = who;
+            div.appendChild(w);
+          }
+          div.appendChild(document.createTextNode(text || ""));
+          el.convo.appendChild(div);
+          scroll();
+          return div;
+        }
+        return {
+          user(text) {
+            assistantEl = null;
+            if (text && text.trim()) bubble("user", "You", text.trim());
+          },
+          tool(t) {
+            const args = t.arguments ? JSON.stringify(t.arguments) : "{}";
+            bubble("tool", "🔧 tool", `${t.name}(${args})`);
+          },
+          assistantChunk(text) {
+            clearEmpty();
+            if (!assistantEl) {
+              assistantEl = bubble("assistant cursor", "Alfred", "");
+            }
+            assistantEl.appendChild(
+              document.createTextNode(
+                (assistantEl.childNodes.length > 1 ? " " : "") + text,
+              ),
+            );
+            scroll();
+          },
+          finishAssistant() {
+            if (assistantEl) assistantEl.classList.remove("cursor");
+          },
+          error(msg) {
+            bubble("error", "", "⚠ " + msg);
+          },
+        };
+      })();
+
+      bus.on("user-transcript", (t) => Convo.user(t));
+      bus.on("tool", (t) => Convo.tool(t));
+      bus.on("assistant-text", (t) => Convo.assistantChunk(t));
+      bus.on("stream-error", (m) => {
+        showError(m);
+        Convo.error(m);
+      });
+
+      /* ---- turn orchestration ---------------------------------------------------- */
+      async function doTurn(wavBytes) {
+        setState({ busy: true });
+        Player.beginTurn();
+        let resp;
+        try {
+          resp = await API.speak(wavBytes, state.sessionId);
+        } catch (e) {
+          showError("Could not reach the server. Is it running?");
+          Player.endTurn();
+          setState({ busy: false });
+          return;
+        }
+        if (!resp.ok) {
+          showError(`Server error on /speak (HTTP ${resp.status}).`);
+          Player.endTurn();
+          setState({ busy: false });
+          return;
+        }
+
+        // Metadata rides in the headers — render it before the body streams in.
+        const sid = resp.headers.get("X-Session-ID");
+        if (sid) setState({ sessionId: sid });
+        const transcript = safeDecode(resp.headers.get("X-Transcript"));
+        bus.emit("user-transcript", transcript);
+        const toolsRaw = resp.headers.get("X-Tool-Calls");
+        if (toolsRaw) {
+          try {
+            JSON.parse(safeDecode(toolsRaw)).forEach((t) =>
+              bus.emit("tool", t),
+            );
+          } catch {}
+        }
+        const fallback = resp.headers.get("X-Fallback-TXT");
+        if (fallback) {
+          showError("Alfred fell back: " + fallback);
+          Convo.error(fallback);
+        }
+
+        try {
+          const ct = resp.headers.get("Content-Type") || "";
+          if (ct.includes("application/x-ndjson")) {
+            await demuxNdjson(resp.body);
+          } else {
+            const arr = await resp.arrayBuffer(); // octet-stream fallback => full WAV
+            if (arr.byteLength) await Player.playWav(arr);
+          }
+        } catch (e) {
+          showError("Stream interrupted: " + (e && e.message ? e.message : e));
+        } finally {
+          Convo.finishAssistant();
+          Player.endTurn();
+          setState({ busy: false });
+        }
+      }
+
+      function safeDecode(v) {
+        if (!v) return "";
+        try {
+          return decodeURIComponent(v);
+        } catch {
+          return v;
+        }
+      }
+
+      /* ---- push-to-talk ----------------------------------------------------------
+       * Race-safe against the microphone permission prompt. On the first press,
+       * getUserMedia blocks on the "Allow" dialog; the matching release can fire while
+       * we're still awaiting it (before recording has actually started). So we track the
+       * user's *intent* (`holding`) separately from the recorder lifecycle
+       * (`recPhase`), and reconcile once the async start finishes:
+       *   - if the user already let go, discard this first (permission-priming) capture
+       *     and return to idle — press again to talk;
+       *   - stop is driven by `holding`/`recPhase`, so any later press/release always
+       *     releases a stuck recording (self-healing), and a safety timer is a backstop.
+       * -------------------------------------------------------------------------- */
+      let holding = false; // user is currently pressing (pointer or space)
+      let recPhase = "idle"; // idle | starting | recording | stopping
+      let safetyTimer = null;
+
+      function armSafetyTimer() {
+        clearSafetyTimer();
+        safetyTimer = setTimeout(() => {
+          if (recPhase === "recording") {
+            holding = false;
+            finishRecording(false); // auto-send whatever was captured
+          }
+        }, CONFIG.MAX_RECORDING_MS);
+      }
+      function clearSafetyTimer() {
+        if (safetyTimer) {
+          clearTimeout(safetyTimer);
+          safetyTimer = null;
+        }
+      }
+
+      async function startTalking() {
+        if (state.busy || state.server !== "ready") return;
+        if (holding || recPhase !== "idle") return;
+        holding = true;
+        recPhase = "starting";
+        Player.interrupt(); // interrupt any playback the moment a new turn begins
+        await Player.resume(); // unlock audio within the user gesture
+        try {
+          await Recorder.start(); // may block on the permission prompt
+        } catch (e) {
+          recPhase = "idle";
+          holding = false;
+          showError(
+            e && e.name === "NotAllowedError"
+              ? "Microphone access was denied. Allow it in your browser and try again."
+              : "Could not access the microphone: " +
+                  (e && e.message ? e.message : e),
+          );
+          return;
+        }
+        recPhase = "recording";
+        if (!holding) {
+          // Released during the permission prompt / async start: discard this priming
+          // capture and reset to idle so the button never sticks.
+          await finishRecording(true);
+        } else {
+          setState({ recording: true });
+          armSafetyTimer();
+        }
+      }
+
+      async function stopTalking() {
+        holding = false;
+        if (recPhase !== "recording") return; // "starting" is handled by the reconcile above
+        clearSafetyTimer();
+        await finishRecording(false);
+      }
+
+      async function finishRecording(discard) {
+        if (recPhase !== "recording") return;
+        recPhase = "stopping";
+        clearSafetyTimer();
+        if (state.recording) setState({ recording: false });
+        let result = null;
+        try {
+          result = await Recorder.stop();
+        } catch (e) {
+          recPhase = "idle";
+          showError("Recording failed: " + (e && e.message ? e.message : e));
+          return;
+        }
+        recPhase = "idle";
+        if (discard || !result) return;
+
+        if (
+          result.durationMs < CONFIG.MIN_RECORDING_MS ||
+          result.peak < CONFIG.SILENCE_PEAK
+        ) {
+          showError("No audio captured — hold the button, then speak.");
+          return;
+        }
+        doTurn(result.bytes);
+      }
+
+      // Pointer (mouse + touch) hold-to-talk. Press starts on the button; release is
+      // caught on the window so a release outside the button (e.g. after the permission
+      // dialog moved focus) still stops the recording.
+      el.ptt.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        startTalking();
+      });
+      window.addEventListener("pointerup", () => stopTalking());
+      window.addEventListener("pointercancel", () => stopTalking());
+
+      // Spacebar hold-to-talk; Esc stops the server (parity with the old client).
+      window.addEventListener("keydown", (e) => {
+        if (e.code === "Space" && !e.repeat) {
+          e.preventDefault();
+          startTalking();
+        } else if (e.code === "Escape") {
+          if (!el.stopBtn.disabled) el.stopBtn.click();
+        }
+      });
+      window.addEventListener("keyup", (e) => {
+        if (e.code === "Space") {
+          e.preventDefault();
+          stopTalking();
+        }
+      });
+
+      /* ---- wake chime ------------------------------------------------------------
+       * A short synthesized "Alfred is awake" cue (no audio asset needed). Browser
+       * autoplay policy blocks sound until a user gesture — clicking Start server is
+       * that gesture (we resume the audio context there), so the chime can play when the
+       * server finishes warming up. If audio is still locked, it silently no-ops.
+       * -------------------------------------------------------------------------- */
+      function playWakeChime() {
+        try {
+          Player.ensure();
+          const ctx = Player.ctx;
+          if (!ctx || ctx.state !== "running") return; // audio not unlocked yet
+          const now = ctx.currentTime;
+          const notes = [523.25, 659.25, 783.99, 1046.5]; // C5–E5–G5–C6 arpeggio
+          notes.forEach((f, i) => {
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.value = f;
+            const t = now + i * 0.11;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+            osc.connect(g);
+            g.connect(ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.35);
+          });
+        } catch {}
+      }
+
+      /* ---- server controls ------------------------------------------------------- */
+      el.startBtn.addEventListener("click", async () => {
+        Player.resume(); // unlock audio within this gesture so the wake chime can play
+        setState({ server: "starting" });
+        try {
+          await API.start();
+        } catch (e) {
+          showError(e.message);
+        }
+        setTimeout(refreshStatus, 800);
+      });
+      el.stopBtn.addEventListener("click", async () => {
+        Player.interrupt();
+        setState({ server: "stopping" });
+        try {
+          await API.stop();
+        } catch (e) {
+          showError(e.message);
+        }
+        setTimeout(refreshStatus, 800);
+      });
+
+      /* ---- status polling --------------------------------------------------------
+       * Two tiers:
+       *   - Lifecycle manager reachability: a successful status call means the control
+       *     plane is online; a thrown call means it is offline. We piggyback this on the
+       *     status poll rather than pinging the manager separately.
+       *   - Assistant server state, from the manager's /status for this service:
+       *       off       -> "Server off"
+       *       starting  -> "Starting…"
+       *       on        -> "Warming up…" until /health passes, then "Ready" (unlocks talk)
+       *       stopping  -> "Stopping…"
+       * ---------------------------------------------------------------------------- */
+      async function refreshStatus() {
+        const prevServer = state.server;
+        let lc;
+        try {
+          lc = await API.lifecycleStatus();
+        } catch {
+          // Manager unreachable — can't know the server state through it.
+          setState({ lifecycle: "offline", server: "checking" });
+          return;
+        }
+
+        if (lc === "off") {
+          setState({ lifecycle: "online", server: "off" });
+          return;
+        }
+        if (lc === "stopping") {
+          setState({ lifecycle: "online", server: "stopping" });
+          return;
+        }
+        if (lc === "starting") {
+          setState({ lifecycle: "online", server: "starting" });
+          return;
+        }
+        // lc === "on": container up, but the app may still be warming up — confirm via /health.
+        const healthy = await API.health();
+        const next = healthy ? "ready" : "warming";
+        setState({ lifecycle: "online", server: next });
+        if (next === "ready" && prevServer !== "ready") playWakeChime(); // Alfred just woke up
+      }
+
+      /* ---- boot ------------------------------------------------------------------ */
+      Waveform.start();
+      render();
+      refreshStatus();
+      setInterval(refreshStatus, CONFIG.STATUS_POLL_MS);
+    </script>
+  </body>
+</html>
