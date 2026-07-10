@@ -1,113 +1,80 @@
-# Local AI Assistant Mic Clients
+# Local AI Assistant — Mic Clients
 
-**Entirely manually coded **without** AI coding agents**
-Client-side microphone/speaker applications for the Local AI Assistant system. This repository contains the lightweight edge clients that capture audio, send it to the `local-assistant-server`, receive streamed audio responses, and play them locally.
+**Part of the [Local AI Assistant](https://github.com/mattdwall100/local-assistant-server) system.**
+Start there for the architecture, the headline numbers, and the full voice pipeline.
 
-The server performs the AI-heavy work: STT, LLM inference, tool execution, memory, and TTS. The clients stay focused on device I/O, local controls, playback, and local fallback behavior.
+**Entirely manually coded — without AI coding agents.**
 
-## Projects
+The edge clients: they capture microphone audio, send it to
+[local-assistant-server](https://github.com/mattdwall100/local-assistant-server), stream the
+spoken response back, and play it. The server does all the AI work (STT, LLM, tools, TTS); the
+clients stay small and focused on device I/O, push-to-talk, playback, and graceful fallback.
 
-- `windows-mic-client/`: implemented Windows push-to-talk client for local development and desktop use.
-- `raspberry-pi-client/`: planned Raspberry Pi edge client for wake-word, microphone, and speaker deployment.
-
-## What The Windows Client Implements
-
-- Push-to-talk recording using the spacebar.
-- Microphone capture with `sounddevice`, NumPy frame handling, and WAV byte conversion.
-- Multipart audio upload to the assistant server `/speak` and `/transcribe` endpoints.
-- Streaming TTS playback from server responses.
-- Interruptible playback so new speech input can stop current audio output.
-- Session ID tracking across interactions.
-- Server health checks and lifecycle-manager start/stop hooks.
-- Client-side fallback audio for bad recordings or unavailable server.
-- Environment-backed configuration for API URLs, timeouts, mic settings, playback settings, and fallback paths.
-- Unit and integration-style tests using fakes/monkeypatching around hardware and network boundaries.
-
-## Technologies
-
-- Python 3.11-3.13
-- sounddevice, soundfile, NumPy
-- pynput
-- requests
-- Pydantic v2, pydantic-settings
-- pytest, pytest-cov
-- Ruff, mypy
-- Docker/Docker Compose assets
-
-## Engineering Practices Demonstrated
-
-- Clear edge/server separation: the client handles I/O; the server handles inference.
-- Modular client architecture: audio recorder, audio player, API client, orchestrator, fallback handler, config, logging.
-- Testable hardware boundaries using fakes and monkeypatching instead of requiring a real microphone/server during tests.
-- Latency logging around API calls and user interactions.
-- Configurable runtime behavior through `.env` and typed settings.
-- Graceful degradation through local fallback WAV files.
-- Roadmap-aware design for moving from Windows development to Raspberry Pi deployment.
-
-## Repository Structure
-
-```text
-mic-client/
-|-- README.md
-|-- requirements.txt
-|-- external/
-|-- raspberry-pi-client/
-|   `-- README.md                     # Planned Raspberry Pi client
-`-- windows-mic-client/
-    |-- README.md
-    |-- src/
-    |   `-- windows_mic_client/
-    |       |-- main.py               # Client composition and startup flow
-    |       |-- audio/
-    |       |   |-- recorder.py       # Push-to-talk recording
-    |       |   |-- player.py         # WAV/stream playback
-    |       |   `-- audio_utils.py    # WAV byte conversion
-    |       |-- client/
-    |       |   `-- assistant_api_client.py
-    |       |-- core/
-    |       |   |-- config.py
-    |       |   `-- logging.py
-    |       |-- orchestrator/
-    |       |   |-- orchestrator.py
-    |       |   `-- fallback.py
-    |       `-- utils/
-    |           `-- latency_logger.py
-    |-- tests/
-    |   |-- test_assistant_api_client.py
-    |   |-- test_audio_utils.py
-    |   |-- test_config.py
-    |   |-- test_fallback.py
-    |   |-- test_integration_flows.py
-    |   |-- test_orchestrator.py
-    |   |-- test_player.py
-    |   `-- test_recorder_controller.py
-    |-- assets/
-    |   `-- fallback_audio/
-    |-- scripts/
-    |   `-- run_client.ps1
-    |-- Dockerfile
-    |-- docker-compose.yml
-    |-- requirements.txt
-    |-- requirements-dev.txt
-    `-- .env.example
+```mermaid
+flowchart LR
+    subgraph Clients
+      WEB["web-client<br/>(browser, zero-install)"]
+      WIN["windows-mic-client<br/>(Python push-to-talk)"]
+    end
+    WEB & WIN -->|"POST /speak (WAV)"| S["assistant-server :8000"]
+    WEB & WIN -->|"start / stop / status"| L["lifecycle-manager :9000"]
+    S -->|"streamed audio (or NDJSON text+audio)"| WEB & WIN
 ```
 
-## Running The Windows Client
+## Clients
 
-Start the assistant server first, then run:
+| Client | Status | Best for |
+| --- | --- | --- |
+| [`web-client/`](web-client) | ✅ implemented | **The quickest way to try the assistant.** One self-contained `index.html`, no build, no install. |
+| [`windows-mic-client/`](windows-mic-client) | ✅ implemented | Desktop push-to-talk during development. |
+| [`raspberry-pi-client/`](raspberry-pi-client) | 🗺️ planned | Always-on wake-word edge device. |
+
+### web-client — zero-install browser client
+
+A single [`index.html`](web-client) (no dependencies) that turns any modern browser into a
+push-to-talk voice terminal for the assistant. Hold the mic button or the space bar to talk; it
+encodes a 16-bit PCM WAV in-browser and POSTs it to `/speak` requesting the NDJSON stream, then
+**demuxes text and audio in lockstep** — the transcript fills in as the paired audio plays back
+gaplessly via the Web Audio API. It also shows live server status (Off → Starting → Warming up →
+Ready, polled every 3s), Start/Stop buttons wired to the lifecycle manager, `Esc` to stop the
+server, an `AnalyserNode` waveform, and a synthesized wake chime. This is the most demo-able
+artifact in the whole system — open the file and talk.
+
+### windows-mic-client — Python push-to-talk (86% test coverage, 30 tests)
+
+- **Space bar to talk:** hold to record (16 kHz mono via `sounddevice`), release to POST the WAV
+  to `/speak`; a new recording interrupts any in-progress playback.
+- **Server lifecycle aware:** health-checks the server on startup and, if it's down, asks the
+  lifecycle manager to start it and polls `/health` for up to 45s before greeting you. `Esc` asks
+  the lifecycle manager to stop the server, then exits.
+- **Graceful fallback:** plays a local fallback WAV when a recording is empty or the server is
+  unreachable, so it never fails silently.
+- Testable hardware boundaries: the mic, speaker, and network are faked/monkeypatched, so the
+  suite runs without a real microphone or a live server.
+
+## Running the Windows client
+
+Start the assistant server first, then:
 
 ```powershell
 cd windows-mic-client
 .\scripts\run_client.ps1
 ```
 
-Hold `Space` to record. Release `Space` to send the WAV audio to the server. Press `Esc` to request server shutdown through the lifecycle manager and exit.
+Hold `Space` to record, release to send, `Esc` to shut the server down and exit.
 
-## Testing
+## Testing (Windows client)
 
 ```powershell
 cd windows-mic-client
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-The Windows client test suite validates API calls, orchestration, fallback behavior, config loading, WAV conversion, playback streaming, and push-to-talk control flow.
+30 tests, **86% coverage** — API client, orchestration, fallback, config, WAV conversion,
+playback streaming, and push-to-talk control flow. Boundaries (mic, network) are faked.
+
+## Technologies
+
+Python 3.11–3.13 · sounddevice, soundfile, NumPy · pynput · requests · Pydantic v2 ·
+pytest / pytest-cov · Ruff, mypy · Docker/Compose assets. The web client is plain
+HTML/CSS/JavaScript with the Web Audio API — no framework, no build.
